@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker APIからのデータ表示</title>
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Cloudflare Worker API連携デモ</h1>
+        <p>「データを取得」ボタンをクリックして、Workerから取得したJSONデータを表示します。</p>
+
+        <button id="fetch-data-button">データを取得</button>
+
+        <div id="data-display">
+            <h2>取得データ:</h2>
+            <p>メッセージ: <span id="message"></span></p>
+            <p>タイムスタンプ: <span id="timestamp"></span></p>
+            <p>Code: <span id="location"></span></p>
+            <p>Name: <span id="name"></span></p>
+            <p>Price: <span id="current_price" style="color: red;"></span></p>
+            <p>Compared to the previous day: <span id="change_amount"></span></p>
+            <p>Percent: <span id="change_percentage"></span></p>
+           
+        </div>
+    </div>
+
+    <script src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../src/apitest.css">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Finance API Test Dashboard</span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- API Endpoint: /api/quote -->
+        <div class="card mb-4">
+            <div class="card-header">
+                GET /api/quote
+            </div>
+            <div class="card-body">
+                <form id="quote-form">
+                    <div class="mb-3">
+                        <label for="quote-codes" class="form-label">Codes (comma-separated)</label>
+                        <input type="text" class="form-control" id="quote-codes" placeholder="^N225,USDJPY=FX,7203.T" required>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center">
+                            <button type="submit" class="btn btn-primary">Fetch Quotes</button>
+                            <span class="ms-3 text-muted">-&gt; fn handle_quote</span>
+                        </div>
+                        <div class="form-text mt-1">
+                            複数の金融商品の価格情報をまとめて取得します。
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- API Endpoint: /api/verify-selectors -->
+        <div class="card mb-4">
+            <div class="card-header">
+                GET /api/verify-selectors
+            </div>
+            <div class="card-body">
+                <form id="verify-form">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="verify-code-type" class="form-label">Code Type</label>
+                            <select id="verify-code-type" class="form-select">
+                                <option value="stock" selected>stock</option>
+                                <option value="nikkei">nikkei</option>
+                                <option value="dji">dji</option>
+                                <option value="fx">fx</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="verify-code" class="form-label">Code</label>
+                            <input type="text" class="form-control" id="verify-code" placeholder="6758.T" required>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center">
+                            <button type="submit" class="btn btn-primary">Verify Selectors</button>
+                            <span class="ms-3 text-muted">-&gt; fn handle_verify_selectors_get</span>
+                        </div>
+                        <div class="form-text mt-1">
+                            指定した銘柄コードと保存済みセレクターでスクレイピングを1件試し、結果を確認します。
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- API Endpoint: /api/test-parser -->
+        <div class="card mb-4">
+            <div class="card-header">
+                POST /api/test-parser
+            </div>
+            <div class="card-body">
+                <form id="parser-form">
+                    <div class="mb-3">
+                        <label for="parser-html" class="form-label">HTML Content</label>
+                        <textarea class="form-control" id="parser-html" rows="5" placeholder="Paste HTML content here..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="parser-code" class="form-label">Code</label>
+                        <input type="text" class="form-control" id="parser-code" placeholder="7203.T" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="parser-selectors" class="form-label">Selectors (JSON)</label>
+                        <textarea class="form-control" id="parser-selectors" rows="8" placeholder='''{ "name_selector": "h2", "current_value_selector": "span.price" }'''></textarea>
+                        <div class="form-text">Provide a JSON object of the SelectorConfig. Leave empty to use defaults from code.</div>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center">
+                            <button type="submit" class="btn btn-primary">Test Parser</button>
+                            <span class="ms-3 text-muted">-&gt; fn handle_test_parser</span>
+                        </div>
+                        <div class="form-text mt-1">
+                            手元のHTMLとセレクターを直接指定し、解析ロジックだけを単体でテストします。
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card">
+            <div class="card-header">
+                API Response
+            </div>
+            <div class="card-body">
+                <pre id="api-response" class="bg-light p-3 rounded"><code>Awaiting API call...</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="../src/apitest.js"></script>
+</body>
+</html>

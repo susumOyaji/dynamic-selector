@@ -1,0 +1,33 @@
+# -----------------------------------------------
+# ⭐️ Workers のための設定 (例: worker/wrangler.toml またはルートのワーカーセクション)
+# -----------------------------------------------
+name = "dynamic-selector"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-11-06"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+
+[[kv_namespaces]]
+binding = "FIN_SELECTORS"
+id = "795b7bf17c904366991a12b1b2061be6"
+preview_id = "c1a40b5b195942688b3b4e5b6a45982e" # この行を追加
+
+# # もし、他のWorker設定があればここに続く...
+[vars]
+ADMIN_KEY = "secret-admin-key" # ここを任意の秘密のキーに置き換えてください
+
+# [site]
+# bucket = "../frontend/public"
+
+# curlコマンドで直接Yahoo!ファイナンスのページ内容を取得し、lib.rs内のセレクタ定義と比較します
+
+#主な用途
+# WebサイトのHTMLソースコードを取得する。（今まさにやろうとしていることです）
+# APIを叩いて、JSONなどのデータを取得する。
+# サーバーからファイルをダウンロードする。
+#lib.rs内のセレクタ定義と比較します
+#その設計図の中に、我々のプログラムが持っている指示書（セレクタ）に書かれた「目印」が今でも存在するかどうかを照合する。
+#保存するセレクタのデータを、Webサイトから抽出する、という手順を先に確認したいのですね。
+#大変申し訳ありませんが、現在のコードには、WebサイトのHTMLから自動的にセレクタを「抽出」する機能は実装されていません。

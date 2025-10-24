@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>株価情報 - ソニーグループ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 30px auto;
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .stock-info p {
+            margin: 8px 0;
+            font-size: 1.1em;
+        }
+        .stock-info strong {
+            display: inline-block;
+            width: 150px;
+            color: #555;
+        }
+        .price {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745; /* Green for positive, red for negative */
+        }
+        .change {
+            font-size: 1.2em;
+        }
+        .positive {
+            color: #28a745; /* Green */
+        }
+        .negative {
+            color: #dc3545; /* Red */
+        }
+        .loading {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>株価情報</h1>
+        <div id="stock-data" class="stock-info">
+            <p class="loading">株価データを読み込み中...</p>
+            </div>
+    </div>
+
+    <script>
+        const workerUrl = "https://rustwasm-fullstack-app.sumitomo0210.workers.dev/"; // ⭐️ ここをあなたのWorkersのURLに置き換える
+
+        async function fetchStockData() {
+            const stockDataDiv = document.getElementById('stock-data');
+            stockDataDiv.innerHTML = '<p class="loading">株価データを読み込み中...</p>'; // ローディング表示
+
+            try {
+                const response = await fetch(workerUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const changeAmountClass = parseFloat(data.change_amount) > 0 ? 'positive' : (parseFloat(data.change_amount) < 0 ? 'negative' : '');
+                    const changePercentageClass = parseFloat(data.change_percentage) > 0 ? 'positive' : (parseFloat(data.change_percentage) < 0 ? 'negative' : '');
+
+                    stockDataDiv.innerHTML = `
+                        <p><strong>企業名:</strong> ${data.company_name} (${data.company_code})</p>
+                        <p><strong>現在価格:</strong> <span class="price">${data.current_price}円</span></p>
+                        <p><strong>前日比:</strong> 
+                            <span class="change ${changeAmountClass}">${data.change_amount}</span>円 (<span class="change ${changePercentageClass}">${data.change_percentage}</span>%)
+                        </p>
+                        <p><strong>更新時間:</strong> ${data.update_time}</p>
+                        <p><strong>データソース:</strong> ${data.source}</p>
+                    `;
+                } else {
+                    stockDataDiv.innerHTML = `<p class="error">データの取得に失敗しました: ${data.message || '不明なエラー'}</p>`;
+                }
+
+            } catch (error) {
+                console.error('Error fetching stock data:', error);
+                stockDataDiv.innerHTML = `<p class="error">株価データの取得中にエラーが発生しました。<br>ネットワーク接続を確認するか、WorkerのURLが正しいか確認してください。</p>`;
+            }
+        }
+
+        // ページ読み込み時にデータをフェッチ
+        fetchStockData();
+
+        // 任意: 定期的にデータを更新したい場合 (例: 1分ごと)
+        setInterval(fetchStockData, 60000); 
+    </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Check Runner</title>
+    <style>
+        body { font-family: sans-serif; padding: 2em; line-height: 1.6; }
+        code { background-color: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; }
+        button { font-size: 1.2em; padding: 0.5em 1em; cursor: pointer; }
+        pre { background-color: #f0f0f0; padding: 1em; border: 1px solid #ccc; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>API Manual Check</h1>
+    <p>
+        以下のボタンを押すと、ローカルで起動しているWorker (<code>http://localhost:8787/api/manual-check</code>) に対して、
+        <code>X-Admin-Key</code>ヘッダー付きでリクエストを送信します。
+    </p>
+    <p><b>重要:</b> 事前に<code>wrangler dev</code>コマンドでローカル開発サーバーを起動しておく必要があります。</p>
+    <button id="runCheck">Run Manual Check</button>
+    <hr>
+    <h2>Result:</h2>
+    <pre id="result">ここに結果が表示されます...</pre>
+
+    <script>
+        document.getElementById('runCheck').addEventListener('click', async () => {
+            const resultPre = document.getElementById('result');
+            resultPre.textContent = '実行中...';
+
+            const url = 'http://localhost:8787/api/manual-check';
+            const headers = {
+                'X-Admin-Key': 'secret-admin-key'
+            };
+
+            try {
+                const response = await fetch(url, { headers });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                resultPre.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                resultPre.textContent = `エラーが発生しました。\n\n${error}\n\n・wrangler devサーバーが起動しているか\n・ブラウザのコンソール(F12キー)にエラーが出ていないか\nを確認してください。`;
+            }
+        });
+    </script>
+</body>
+</html>
