@@ -1,16 +1,41 @@
-### Get Quote for All Codes
-GET http://localhost:8787/quote?code=^DJI,998407.O,USDJPY=X,6758.T,5016.T
+@hostname = http://localhost:8787
+
+###
+# サーバーの稼働確認
+GET {{hostname}}/health
+
+#//////////////////////////////////////////////////
+# Quote API (`/quote`)
+#//////////////////////////////////////////////////
+
+### 複数の銘柄を一度に取得
+GET {{hostname}}/quote?code=^DJI,998407.O,USDJPY=X,6758.T,5016.T
+
+### 日経平均
+GET {{hostname}}/quote?code=998407.O
+
+### NYダウ
+GET {{hostname}}/quote?code=^DJI
 
 
+#//////////////////////////////////////////////////
+# Selector Generation API (`/generate-selectors`)
+#//////////////////////////////////////////////////
 
-### Get Quote for Nikkei
-GET http://localhost:8787/quote?code=998407.O
+### ページ上のテキストからセレクター候補を自動生成
+# @name generateSelectors
+GET {{hostname}}/generate-selectors?url=https://finance.yahoo.co.jp/quote/7203.T&text=トヨタ自動車
 
-### Get Quote for DJI
-GET http://localhost:8787/quote?code=^DJI
 
-### Get Quote for USD/JPY
-GET http://localhost:8787/quote?code=USDJPY=X
+#//////////////////////////////////////////////////
+# Selector Verification API (`/verify-selector`)
+#//////////////////////////////////////////////////
 
-### Get Quote for Sony (6758.T)
-GET http://localhost:8787/quote?code=6758.T
+### 指定したセレクターがページ上で機能するかを検証
+# @name verifySelector
+GET {{hostname}}/verify-selector?url=https://finance.yahoo.co.jp/quote/6758.T&selector=[class*='price']
+
+### （検証例）h2タグを検証
+GET {{hostname}}/verify-selector?url=https://finance.yahoo.co.jp/quote/7203.T&selector=h2
+
+#root > main > div > section > div.PriceBoard__main__1liM > div.PriceBoard__priceInformation__78Tl > div.PriceBoard__priceBlock__1PmX > span > span > span

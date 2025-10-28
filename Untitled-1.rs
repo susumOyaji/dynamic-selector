@@ -1,27 +1,6 @@
-use scraper::{ElementRef, Html, Selector};
+use scraper::{Html, Selector};
 use worker::*;
 use serde::Serialize;
-
-pub mod selector_generator;
-use selector_generator::generate_selector_candidates;
-
-// --- セレクター検証API用のデータ構造 ---
-#[derive(Serialize, Debug, Clone)]
-struct VerificationResult {
-    url: String,
-    selector: String,
-    is_valid_syntax: bool,
-    error_message: Option<String>,
-    match_count: usize,
-    matches: Vec<ElementInfo>,
-}
-
-#[derive(Serialize, Debug, Clone)]
-struct ElementInfo {
-    tag: String,
-    text: String,
-    html: String,
-}
 
 // --- データ構造 ---
 #[derive(Serialize, Debug, Clone)]
@@ -358,98 +337,6 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             let results = scrape_multiple_data(codes).await;
             Response::from_json(&results)
-        })
-        .get_async("/generate-selectors", |req, _ctx| async move {
-            let url = req.url()?;
-            let mut target_url = None;
-            let mut target_text = None;
-
-            for (key, value) in url.query_pairs() {
-                match key.as_ref() {
-                    "url" => target_url = Some(value.to_string()),
-                    "text" => target_text = Some(value.to_string()),
-                    _ => {}
-                }
-            }
-
-            let (target_url, target_text) = match (target_url, target_text) {
-                (Some(u), Some(t)) => (u, t),
-                _ => return Response::error("Missing 'url' and 'text' query parameters", 400),
-            };
-
-            // Fetch HTML from target_url
-            let mut res = match Fetch::Url(Url::parse(&target_url)?).send().await {
-                Ok(res) => res,
-                Err(e) => return Response::error(format!("Failed to fetch URL: {}", e), 500),
-            };
-            let html = match res.text().await {
-                Ok(html) => html,
-                Err(e) => return Response::error(format!("Failed to read response text: {}", e), 500),
-            };
-
-            // Generate selectors
-            let selectors = generate_selector_candidates(&html, &target_text);
-
-            Response::from_json(&selectors)
-        })
-        .get_async("/verify-selector", |req, _ctx| async move {
-            let url = req.url()?;
-            let mut target_url = None;
-            let mut selector_str = None;
-
-            for (key, value) in url.query_pairs() {
-                match key.as_ref() {
-                    "url" => target_url = Some(value.to_string()),
-                    "selector" => selector_str = Some(value.to_string()),
-                    _ => {}
-                }
-            }
-
-            let (target_url, selector_str) = match (target_url, selector_str) {
-                (Some(u), Some(s)) => (u, s),
-                _ => return Response::error("Missing 'url' and 'selector' query parameters", 400),
-            };
-
-            let mut res = match Fetch::Url(Url::parse(&target_url)?).send().await {
-                Ok(res) => res,
-                Err(e) => return Response::error(format!("Failed to fetch URL: {}", e), 500),
-            };
-            let html = match res.text().await {
-                Ok(html) => html,
-                Err(e) => return Response::error(format!("Failed to read response text: {}", e), 500),
-            };
-            
-            let document = Html::parse_document(&html);
-            let mut result = VerificationResult {
-                url: target_url,
-                selector: selector_str.clone(),
-                is_valid_syntax: false,
-                error_message: None,
-                match_count: 0,
-                matches: vec![],
-            };
-
-            match Selector::parse(&selector_str) {
-                Ok(selector) => {
-                    result.is_valid_syntax = true;
-                    let matches: Vec<ElementRef> = document.select(&selector).collect();
-                    result.match_count = matches.len();
-                    // パフォーマンスのため、最初に見つかった5件に限定
-                    for element in matches.iter().take(5) {
-                        result.matches.push(ElementInfo {
-                            tag: element.value().name().to_string(),
-                            text: element.text().collect::<String>().trim().to_string(),
-                            html: element.html(),
-                        });
-                    }
-                }
-                Err(e) => {
-                    result.is_valid_syntax = false;
-                    result.error_message = Some(format!("{:?}", e));
-                }
-            };
-
-            Response::from_json(&result)
         })
         .run(req, env)
         .await
