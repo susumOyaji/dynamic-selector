@@ -13,7 +13,12 @@ pub fn generate_selector_candidates(html_str: &str, target_text: &str) -> Vec<St
             let element_text = element.text().collect::<String>();
             if element_text.contains(target_text) {
                 let text_len = element_text.len();
-                if best_match.is_none() || text_len < best_match.as_ref().unwrap().1 {
+                // Update best_match if none exists or current text is shorter than previous best
+                let should_replace = match best_match.as_ref() {
+                    Some((_, prev_len)) => text_len < *prev_len,
+                    None => true,
+                };
+                if should_replace {
                     best_match = Some((element, text_len));
                 }
             }
@@ -43,12 +48,11 @@ fn add_candidate(map: &mut HashMap<String, u32>, selector: String, score: u32) {
        .or_insert(score);
 }
 
-
 // 単一の要素からセレクターを生成し、HashMapに追加する
 fn generate_for_element(element: ElementRef, candidates: &mut HashMap<String, u32>) {
     let tag_name = element.value().name();
 
-    // 1. IDセレクター
+    // 1. IDセレクター (最高スコア)
     if let Some(id) = element.value().id() {
         if !id.trim().is_empty() {
             add_candidate(candidates, format!("#{}", id), 100);
@@ -59,21 +63,60 @@ fn generate_for_element(element: ElementRef, candidates: &mut HashMap<String, u3
     let classes: Vec<_> = element.value().classes().filter(|c| !c.trim().is_empty()).collect();
     if !classes.is_empty() {
         let class_selector = classes.iter().map(|c| format!(".{}", c)).collect::<String>();
-        add_candidate(candidates, format!("{}{}", tag_name, class_selector), 50);
+        // 全クラス結合 (例: tag.class1.class2)
+        add_candidate(candidates, format!("{}{}", tag_name, class_selector), 60);
 
-        for class in classes {
+        for class in &classes {
+            // 個別クラス (例: tag.class1)
             add_candidate(candidates, format!("{}.{}", tag_name, class), 40);
-            if class.contains("__") { 
+            // BEMライクなクラスの基底部分 (例: [class*="block__element"])
+            if class.contains("__") {
                  if let Some(base) = class.split("__").next() {
                      if !base.is_empty() {
-                        add_candidate(candidates, format!("{}[class*='{}']", tag_name, base), 45);
+                        add_candidate(candidates, format!("{}[class*='{}']", tag_name, base), 50);
                      }
                  }
             }
         }
     }
-    
-    // 3. その他の属性セレクター
+
+    // 3. 親要素のコンテキストを利用したセレクター
+    let mut current = Some(element);
+    let mut path_parts = vec![tag_name.to_string()];
+    let mut level = 1;
+
+    while let Some(parent) = current.and_then(|el| el.parent_element()) {
+        if level > 3 { break; } // 3階層まで遡る
+
+        let parent_tag = parent.value().name();
+
+        // 親がIDを持つ場合 (高スコア)
+        if let Some(id) = parent.value().id() {
+            let mut parent_path = path_parts.clone();
+            parent_path.reverse();
+            let selector = format!("#{}{}", id, parent_path.join(" > "));
+            add_candidate(candidates, selector, 90 - level * 5); // 階層が浅いほど高スコア
+            break; // IDが見つかったらそこで打ち切り
+        }
+
+        // 親が特徴的なクラスを持つ場合
+        let parent_classes: Vec<_> = parent.value().classes().filter(|c| !c.trim().is_empty()).collect();
+        if !parent_classes.is_empty() {
+            let specific_class = parent_classes.iter().find(|c| c.contains("__") || c.contains('-'));
+            if let Some(s_class) = specific_class {
+                let mut parent_path = path_parts.clone();
+                parent_path.reverse();
+                let selector = format!("{}.{} > {}", parent_tag, s_class, parent_path.join(" > "));
+                add_candidate(candidates, selector, 70 - level * 5);
+            }
+        }
+
+        path_parts.push(parent_tag.to_string());
+        current = Some(parent);
+        level += 1;
+    }
+
+    // 4. その他の属性セレクター
     for (attr, value) in element.value().attrs() {
         let lower_attr = attr.to_lowercase();
         if lower_attr != "class" && lower_attr != "id" && !value.trim().is_empty() {
@@ -81,20 +124,6 @@ fn generate_for_element(element: ElementRef, candidates: &mut HashMap<String, u3
         }
     }
 
-    // 4. 構造セレクター (親子関係)
-    if let Some(parent) = element.parent_element() {
-        let parent_tag = parent.value().name();
-        if let Some(id) = parent.value().id() {
-            add_candidate(candidates, format!("#{} > {}", id, tag_name), 80);
-        } else {
-             let parent_classes: Vec<_> = parent.value().classes().filter(|c| !c.trim().is_empty()).collect();
-             if !parent_classes.is_empty() {
-                let parent_class_selector = parent_classes.iter().map(|c| format!(".{}", c)).collect::<String>();
-                add_candidate(candidates, format!("{}{} > {}", parent_tag, parent_class_selector, tag_name), 25);
-             }
-        }
-    }
-    
-    // 5. タグ名のみ
+    // 5. タグ名のみ (最低スコア)
     add_candidate(candidates, tag_name.to_string(), 1);
 }

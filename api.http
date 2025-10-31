@@ -1,3 +1,4 @@
+
 @hostname = http://localhost:8787
 
 ###
@@ -9,7 +10,7 @@ GET {{hostname}}/health
 #//////////////////////////////////////////////////
 
 ### 複数の銘柄を一度に取得
-GET {{hostname}}/quote?code=^DJI,998407.O,USDJPY=X,6758.T,5016.T
+GET {{hostname}}/quote?code=^DJI,998407.O,USDJPY=X,6758.T,8729.T,5016.T,4755.T
 
 ### 日経平均
 GET {{hostname}}/quote?code=998407.O
@@ -33,9 +34,36 @@ GET {{hostname}}/generate-selectors?url=https://finance.yahoo.co.jp/quote/7203.T
 
 ### 指定したセレクターがページ上で機能するかを検証
 # @name verifySelector
-GET {{hostname}}/verify-selector?url=https://finance.yahoo.co.jp/quote/6758.T&selector=[class*='price']
+GET {{hostname}}/verify-selector?url=https://finance.yahoo.co.jp/quote/6758.T&selector=[id]
 
 ### （検証例）h2タグを検証
 GET {{hostname}}/verify-selector?url=https://finance.yahoo.co.jp/quote/7203.T&selector=h2
 
-#root > main > div > section > div.PriceBoard__main__1liM > div.PriceBoard__priceInformation__78Tl > div.PriceBoard__priceBlock__1PmX > span > span > span
+#//////////////////////////////////////////////////
+# Data Discovery API (`/discover-data`)
+#//////////////////////////////////////////////////
+
+### 企業コードからデータ候補を抽出
+GET {{hostname}}/discover-data?code=998407.O
+
+### 別の企業コードで試す
+GET {{hostname}}/discover-data?code=7203.T
+
+### インデックスで試す
+GET {{hostname}}/discover-data?code=^N225
+
+#//////////////////////////////////////////////////
+# Dynamic Scraper API (`/scrape-dynamic`)
+#//////////////////////////////////////////////////
+
+### 候補発見からデータ抽出までを自動で実行
+GET {{hostname}}/scrape-dynamic?code=6758.T
+
+### 複数の銘柄を一度に自動で実行
+GET {{hostname}}/scrape-dynamic?code=6758.T,5016.T,7203.T,9984.T
+
+### インデックスを自動で実行
+GET {{hostname}}/scrape-dynamic?code=^DJI
+
+### 別の銘柄で試す
+GET {{hostname}}/scrape-dynamic?code=998407.O
