@@ -132,64 +132,6 @@ pub fn scrape_stock_page_data(document: &Html) -> Result<StockData> {
     Ok(StockData { name, code, price, change_abs, change_pct, update_time })
 }
 
-// --- 以下、src/lib.rs.original より ---
-
-fn find_time_after_realtime_label(document: &Html) -> Option<String> {
-    if let Ok(sel) = Selector::parse("ul li") {
-        let mut found_realtime = false;
-        for li in document.select(&sel) {
-            let text = li.text().collect::<String>();
-            if found_realtime {
-                return Some(text.trim().to_string());
-            }
-            if text.contains("リアルタイム") {
-                found_realtime = true;
-            }
-        }
-    }
-    None
-}
-
-fn format_update_time(time_str: &str) -> String {
-    if let Some(start) = time_str.find(':') {
-        if let Some(end) = time_str.find('）') {
-            if start < end {
-                return time_str[start + 1..end].trim().to_string();
-            }
-        }
-    }
-    time_str.trim().to_string()
-}
-
-fn scrape_index_data(document: &Html, code: &str) -> Result<StockData> {
-    let raw_name = find_with_fallback(document, &["h1[class*='title']", "h1"]).unwrap_or_default();
-    let name = raw_name.replace("の指数情報・推移", "").trim().to_string();
-    let price_block_text = find_with_fallback(document, &["div[class*='_BasePriceBoard__price']"]).unwrap_or_default();
-    let (price, combined_change) = {
-        let change_label = "前日比";
-        let time_label = "リアルタイム";
-        if let Some(change_start_index) = price_block_text.find(change_label) {
-            let price_str = price_block_text[..change_start_index].trim().to_string();
-            let rest_of_string = &price_block_text[change_start_index + change_label.len()..];
-            let change_str = if let Some(time_start_index) = rest_of_string.find(time_label) {
-                rest_of_string[..time_start_index].trim().to_string()
-            } else {
-                rest_of_string.trim().to_string()
-            };
-            (price_str, change_str)
-        } else {
-            (price_block_text.trim().to_string(), "".to_string())
-        }
-    };
-    let (change_abs, change_pct) = parse_change_string(&combined_change);
-    let mut update_time = find_with_fallback(document, &["li[class*='__time--localUpdateTime'] > time", "div[class*='_BasePriceBoard__time'] time"]).unwrap_or_default();
-    if update_time.is_empty() {
-        if let Some(time_from_loop) = find_time_after_realtime_label(document) {
-            update_time = time_from_loop;
-        }
-    }
-    Ok(StockData { name, code: code.to_string(), price, change_abs, change_pct, update_time: format_update_time(&update_time) })
-}
 
 fn scrape_priceboard_data(document: &Html) -> Result<StockData> {
     let container_selectors = &["div[class*='PriceBoard__main']", "section[class*='PriceBoard']", "div[class*='BoardMain']"];
@@ -425,17 +367,47 @@ async fn discover_index_data(code: &str) -> Result<DiscoveredData> {
         }
     }
 
+    // Fallback for Name if JSON extraction fails
+    if name_candidates.is_empty() {
+        console_log!("[DEBUG] discover_index_data: JSON name extraction failed, falling back to DOM scraping.");
+        // Use title tag as a primary fallback
+        if let Ok(sel) = Selector::parse("title") {
+            if let Some(el) = document.select(&sel).next() {
+                let title_text = el.text().collect::<String>();
+                let cleaned_name = title_text.split(" - ").next().unwrap_or("").trim().to_string();
+                 if !cleaned_name.is_empty() {
+                    name_candidates.push(RankedCandidate { text: cleaned_name, score: 80, reason: "Found in <title> tag (fallback)".to_string() });
+                }
+            }
+        }
+        // Use h1 tag as a secondary fallback
+        if name_candidates.is_empty() {
+             if let Ok(sel) = Selector::parse("h1") {
+                if let Some(el) = document.select(&sel).next() {
+                    let h1_text = el.text().collect::<String>().trim().to_string();
+                    if !h1_text.is_empty() {
+                        name_candidates.push(RankedCandidate { text: h1_text, score: 70, reason: "Found in <h1> tag (fallback)".to_string() });
+                    }
+                }
+            }
+        }
+    }
+
     // Fallback to DOM scraping for price, change_abs, change_pct if JSON extraction fails or is incomplete
     if price_candidates.is_empty() || change_abs_candidates.is_empty() || change_pct_candidates.is_empty() {
         console_log!("[DEBUG] discover_index_data: JSON price/change extraction failed or incomplete, falling back to DOM scraping.");
         // Price
-        if let Ok(sel) = Selector::parse("div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']") {
-            for element in document.select(&sel) {
-                let text = element.text().collect::<String>().trim().to_string();
-                if let Ok(parsed_price) = text.replace(",", "").parse::<f64>() {
-                    if parsed_price >= 0.0 {
-                        price_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _CommonPriceBoard__priceBlock (fallback)".to_string() });
-                        console_log!("[DEBUG] discover_index_data: DOM Fallback Price: {}", text);
+        if price_candidates.is_empty() {
+            if let Ok(sel) = Selector::parse("div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']") {
+                for element in document.select(&sel) {
+                    let text = element.text().collect::<String>().trim().to_string();
+                    if !text.starts_with('+') && !text.starts_with('-') {
+                        if let Ok(parsed_price) = text.replace(",", "").parse::<f64>() {
+                            if parsed_price >= 0.0 {
+                                price_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _CommonPriceBoard__priceBlock (fallback)".to_string() });
+                                console_log!("[DEBUG] discover_index_data: DOM Fallback Price: {}", text);
+                            }
+                        }
                     }
                 }
             }
@@ -446,7 +418,8 @@ async fn discover_index_data(code: &str) -> Result<DiscoveredData> {
             if let Ok(sel) = Selector::parse("div[class*='_BasePriceBoard__priceInformation'] span, div[class*='_BasePriceBoard__priceInformation'] div") {
                 for element in document.select(&sel) {
                     let text = element.text().collect::<String>().trim().to_string();
-                    if text.chars().any(|c| c.is_ascii_digit()) {
+                    // Heuristic to distinguish price from change values
+                    if text.chars().any(|c| c.is_ascii_digit()) && !text.starts_with('+') && !text.starts_with('-') && !text.contains('%') {
                         let cleaned_text = text.replace(",", "");
                         if let Ok(parsed_price) = cleaned_text.parse::<f64>() {
                             if parsed_price >= 0.0 {
@@ -464,23 +437,27 @@ async fn discover_index_data(code: &str) -> Result<DiscoveredData> {
         }
 
         // Change Absolute
-        if let Ok(sel) = Selector::parse("span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']") {
-            for element in document.select(&sel) {
-                let text = element.text().collect::<String>().trim().to_string();
-                if text.starts_with('+') || text.starts_with('-') {
-                    change_abs_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _PriceChangeLabel__primary (fallback)".to_string() });
-                    console_log!("[DEBUG] discover_index_data: DOM Fallback Change Abs: {}", text);
+        if change_abs_candidates.is_empty() {
+            if let Ok(sel) = Selector::parse("span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']") {
+                for element in document.select(&sel) {
+                    let text = element.text().collect::<String>().trim().to_string();
+                    if text.starts_with('+') || text.starts_with('-') {
+                        change_abs_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _PriceChangeLabel__primary (fallback)".to_string() });
+                        console_log!("[DEBUG] discover_index_data: DOM Fallback Change Abs: {}", text);
+                    }
                 }
             }
         }
 
         // Change Percentage
-        if let Ok(sel) = Selector::parse("span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']") {
-            for element in document.select(&sel) {
-                let text = element.text().collect::<String>().trim().to_string();
-                if text.contains('%') {
-                    change_pct_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _PriceChangeLabel__secondary (fallback)".to_string() });
-                    console_log!("[DEBUG] discover_index_data: DOM Fallback Change Pct: {}", text);
+        if change_pct_candidates.is_empty() {
+            if let Ok(sel) = Selector::parse("span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']") {
+                for element in document.select(&sel) {
+                    let text = element.text().collect::<String>().trim().to_string();
+                    if !text.is_empty() {
+                        change_pct_candidates.push(RankedCandidate { text: text.clone(), score: 90, reason: "Found in _PriceChangeLabel__secondary (fallback)".to_string() });
+                        console_log!("[DEBUG] discover_index_data: DOM Fallback Change Pct: {}", text);
+                    }
                 }
             }
         }
@@ -541,12 +518,7 @@ async fn scrape_dynamically(code: &str) -> Result<DynamicScrapeResult> {
     let best_change_pct_selector = change_pct_selectors.get(0).ok_or_else(|| Error::from("No selector for percentage change"))?;
 
     // Safely parse generated selectors. If parsing fails, log a warning and use empty string as fallback.
-    let name = if let Ok(sel) = Selector::parse(best_name_selector) {
-        document.select(&sel).find(|el| el.text().collect::<String>().trim() == top_name.text).map(|_| top_name.text.clone()).unwrap_or_default()
-    } else {
-        console_log!("[WARN] Invalid name selector generated: {}", best_name_selector);
-        String::new()
-    };
+    let name = top_name.text.clone();
 
     let price = if let Ok(sel) = Selector::parse(best_price_selector) {
         document.select(&sel).find(|el| el.text().collect::<String>().trim() == top_price.text).map(|_| top_price.text.clone()).unwrap_or_default()
@@ -583,14 +555,19 @@ async fn scrape_dynamically(code: &str) -> Result<DynamicScrapeResult> {
 }
 
 async fn scrape_data(code: &str) -> Result<StockData> {
+    // 指数コードの場合は、JSON解析を含む新しい動的ロジックを使用
+    if code.starts_with('^') {
+        let dynamic_result = scrape_dynamically(code).await?;
+        return Ok(dynamic_result.data);
+    }
+
+    // 指数以外は、既存のロジックを維持
     let url = format!("https://finance.yahoo.co.jp/quote/{}", code);
     let mut res = Fetch::Url(Url::parse(&url)?).send().await?;
     let html = res.text().await?;
     let document = Html::parse_document(&html);
 
-    if code.starts_with('^') {
-        scrape_index_data(&document, code)
-    } else if code.ends_with(".O") || code.ends_with("=X") {
+    if code.ends_with(".O") || code.ends_with("=X") {
         scrape_priceboard_data(&document)
     } else {
         scrape_stock_page_data(&document)

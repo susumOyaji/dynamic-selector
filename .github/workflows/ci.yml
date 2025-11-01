@@ -1,0 +1,56 @@
+name: CI — Build & Publish Worker
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install worker-build and wasm-pack
+        run: |
+          cargo install -q worker-build || true
+          cargo install -q wasm-pack || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+      - name: Build (via package.json)
+        run: |
+          # package.json defines `build` = "wasm-pack build --target bundler"
+          npm run build
+
+      - name: Upload wasm package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: |
+            pkg/**
